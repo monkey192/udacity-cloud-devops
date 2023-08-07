@@ -1,6 +1,30 @@
 [
-	{
-		"ParameterKey": "Add you parameters here",
-		"ParameterValue": "Add you parameters here"
-	}
+  {
+    "ParameterKey": "Application",
+    "ParameterValue": "udacity"
+  },
+  {
+    "ParameterKey": "EnvironmentName",
+    "ParameterValue": "dev"
+  },
+  {
+    "ParameterKey": "BastionAmiId",
+    "ParameterValue": "ami-053b0d53c279acc90"
+  },
+  {
+    "ParameterKey": "ApplicationAmiId",
+    "ParameterValue": "ami-053b0d53c279acc90"
+  },
+  {
+    "ParameterKey": "VpcIdReferName",
+    "ParameterValue": "udacity-dev-VpcId"
+  },
+  {
+    "ParameterKey": "MyIp",
+    "ParameterValue": "210.131.172.236/32"
+  },
+  {
+    "ParameterKey": "PrivateSubnetIds",
+    "ParameterValue": "udacity-dev-PrivateSubnets"
+  }
 ]

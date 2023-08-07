@@ -1,19 +1,198 @@
 Description: CD12352 - Infrastructure as Code Project - Udagram
 
-Parameters:
-  # Add your parameters here
+Parameters:  
+  Application:
+    Description: An Application name that is prefixed to resource names
+    Type: String
+    Default: udacity
+
+  EnvironmentName:
+    Description: An environment name that is postfixed to resource names
+    Type: String
+    Default: dev
+
+  BastionAmiId:
+    Type: String
+    Description: EC2 AMI Id for bastion host
+
+  ApplicationAmiId:
+    Type: String
+    Description: EC2 AMI Id for Application instances
+
+  MyIp:
+    Type: String
+    Description: my ip address
+  
+  VpcIdReferName:
+    Type: String
+    Description: A reference to exported vpc id
+  
+  PrivateSubnetIds:
+    Type: String
+    Description: A list of private subnet Ids, separated by comma
 
 Resources:
-  # Add your resources here
-  # We include a portion of the LaunchTemplate resource so you can use the UserData.
+## Security Group
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: bastion-sg1
+      GroupDescription: Bastion host security group
+      VpcId: 
+        Fn::ImportValue: !Sub ${VpcIdReferName}
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIp
+      Tags:
+        - Key: env
+          Value: !Ref EnvironmentName
+        - Key: Name
+          Value: !Sub ${Application}-bastion-sg-${EnvironmentName}
+
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ELBSecurityGroup
+      GroupDescription: Security group for elastic load balancer
+      VpcId: 
+        Fn::ImportValue: !Sub ${VpcIdReferName}
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: env
+          Value: !Ref EnvironmentName
+        - Key: Name
+          Value: !Sub ${Application}-elb-sg-${EnvironmentName}
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: WebServerSecurityGroup
+      GroupDescription: Security group for web server
+      VpcId: 
+        Fn::ImportValue: !Sub ${VpcIdReferName}
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ELBSecurityGroup
+      Tags:
+        - Key: env
+          Value: !Ref EnvironmentName
+        - Key: Name
+          Value: !Sub ${Application}-elb-sg-${EnvironmentName}
+
+  WebAppInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: WebAppInstanceRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: AllowS3Access
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: AllowS3Access
+            Effect: Allow
+            Action:
+              - 's3:*'
+            Resource: '*' 
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+   
+  WebAppInstanceProfileRole:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref WebAppInstanceRole
+      InstanceProfileName: !Sub ${Application}-InstanceProfile-${EnvironmentName}
+
   WebAppLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties: 
+      LaunchTemplateName: WebServerLaunchTemplate
       LaunchTemplateData:
+        ImageId: !Ref ApplicationAmiId
+        InstanceType: t2.micro
+        SecurityGroupIds:
+          - !Ref WebServerSecurityGroup
+        # IamInstanceProfile:
+          # Arn: !GetAtt
+          #   - WebAppInstanceProfileRole
+          #   - Arn
         UserData:
           Fn::Base64: |
             #!/bin/bash
             apt-get update -y
             sudo apt-get install nginx -y
             service nginx start
-            
+
+  #----- Load balancer & Auto scale group
+  EC2TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 5
+      Matcher:
+        HttpCode: '200'
+      Name: EC2TargetGroup
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId:
+        Fn::ImportValue: !Sub ${VpcIdReferName}
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Name: !Sub ${Application}-alb-${EnvironmentName}
+      Subnets:
+        !Split
+          - ","
+          - Fn::ImportValue: !Sub ${PrivateSubnetIds}
+      SecurityGroups:
+        - !GetAtt ELBSecurityGroup.GroupId
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref EC2TargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+  
+  WebServerGroupASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebAppLaunchTemplate
+        Version: !GetAtt WebAppLaunchTemplate.LatestVersionNumber
+      MaxSize: '3'
+      MinSize: '1'
+      TargetGroupARNs:
+        - !Ref EC2TargetGroup
+      VPCZoneIdentifier:
+        !Split
+          - ","
+          - Fn::ImportValue: !Sub ${PrivateSubnetIds}
+        
