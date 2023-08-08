@@ -27,11 +27,24 @@ Parameters:
     Type: String
     Description: A reference to exported vpc id
   
+  PublicSubnetIds:
+    Type: String
+    Description: A list of public subnet Ids, separated by comma
+
   PrivateSubnetIds:
     Type: String
     Description: A list of private subnet Ids, separated by comma
 
 Resources:
+  s3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      BucketName: !Sub ${Application}-static-content-${EnvironmentName}
+      Tags:
+        - Key: env
+          Value: !Ref EnvironmentName
+  
 ## Security Group
   BastionSG:
     Type: AWS::EC2::SecurityGroup
@@ -110,14 +123,14 @@ Resources:
             Action:
               - 's3:*'
             Resource: '*' 
-      Path: /
+      Path: "/"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
    
   WebAppInstanceProfileRole:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Path: /
+      Path: "/"
       Roles:
         - !Ref WebAppInstanceRole
       InstanceProfileName: !Sub ${Application}-InstanceProfile-${EnvironmentName}
@@ -129,12 +142,16 @@ Resources:
       LaunchTemplateData:
         ImageId: !Ref ApplicationAmiId
         InstanceType: t2.micro
-        SecurityGroupIds:
-          - !Ref WebServerSecurityGroup
-        # IamInstanceProfile:
-          # Arn: !GetAtt
-          #   - WebAppInstanceProfileRole
-          #   - Arn
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups:
+              - !Ref WebServerSecurityGroup
+            DeleteOnTermination: true
+        IamInstanceProfile:
+          Arn: !GetAtt
+            - WebAppInstanceProfileRole
+            - Arn
         UserData:
           Fn::Base64: |
             #!/bin/bash
@@ -167,7 +184,7 @@ Resources:
       Subnets:
         !Split
           - ","
-          - Fn::ImportValue: !Sub ${PrivateSubnetIds}
+          - Fn::ImportValue: !Sub ${PublicSubnetIds}
       SecurityGroups:
         - !GetAtt ELBSecurityGroup.GroupId
 
@@ -188,7 +205,7 @@ Resources:
         LaunchTemplateId: !Ref WebAppLaunchTemplate
         Version: !GetAtt WebAppLaunchTemplate.LatestVersionNumber
       MaxSize: '3'
-      MinSize: '1'
+      MinSize: '2'
       TargetGroupARNs:
         - !Ref EC2TargetGroup
       VPCZoneIdentifier:

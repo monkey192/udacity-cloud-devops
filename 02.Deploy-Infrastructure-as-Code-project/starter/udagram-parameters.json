@@ -24,6 +24,10 @@
     "ParameterValue": "210.131.172.236/32"
   },
   {
+    "ParameterKey": "PublicSubnetIds",
+    "ParameterValue": "udacity-dev-PublicSubnets"
+  },
+  {
     "ParameterKey": "PrivateSubnetIds",
     "ParameterValue": "udacity-dev-PrivateSubnets"
   }
