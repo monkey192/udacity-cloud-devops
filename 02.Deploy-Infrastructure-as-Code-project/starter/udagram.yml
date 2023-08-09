@@ -211,4 +211,10 @@ Resources:
         !Split
           - ","
           - Fn::ImportValue: !Sub ${PrivateSubnetIds}
-        
+
+Outputs:
+  LoadBalancerDNSName:
+    Description: load balancer DNS Name
+    Value: !Sub 
+      - 'http://${DNSName}'
+      - DNSName: !GetAtt ApplicationLoadBalancer.DNSName
