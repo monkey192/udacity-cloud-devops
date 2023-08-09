@@ -1,5 +1,6 @@
 # CD12352 - Infrastructure as Code Project Solution
-
+## Architecture
+![diagram](images/architecture-diagram.drawio.png)
 ## Spin up instructions
 please run bellow comman inside `starter` folder
 ```sh
