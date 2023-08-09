@@ -145,18 +145,25 @@ Resources:
         InstanceType: t2.micro
         NetworkInterfaces:
           - DeviceIndex: 0
-            AssociatePublicIpAddress: true
             Groups:
               - !Ref WebServerSecurityGroup
             DeleteOnTermination: true
         IamInstanceProfile: 
           Name: !Sub ${Application}-InstanceProfile-${EnvironmentName}
         UserData:
-          Fn::Base64: |
-            #!/bin/bash
-            apt-get update -y
-            sudo apt-get install nginx -y
-            service nginx start
+          Fn::Base64: !Sub
+            - |          
+              #!/bin/bash
+              apt-get update -y
+              sudo apt-get install nginx awscli -y
+
+              # download index.html file from S3 bucket
+              # place to /var/www/html
+              sudo aws s3 sync s3://udacity-static-content-dev/contents/ /var/www/html --exclude ".*"
+
+              service nginx start
+
+            - BucketName: !Sub ${Application}-static-content-${EnvironmentName}
 
   #----- Load balancer & Auto scale group
   EC2TargetGroup:
