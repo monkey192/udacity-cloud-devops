@@ -39,7 +39,6 @@ Resources:
   s3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: PublicRead
       BucketName: !Sub ${Application}-static-content-${EnvironmentName}
       Tags:
         - Key: env
@@ -121,11 +120,12 @@ Resources:
           - Sid: AllowS3Access
             Effect: Allow
             Action:
-              - 's3:*'
-            Resource: '*' 
+              - s3:Get*
+              - s3:List*
+            Resource: '*'
       Path: "/"
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy
    
   WebAppInstanceProfileRole:
     Type: AWS::IAM::InstanceProfile
@@ -137,6 +137,7 @@ Resources:
 
   WebAppLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
+    DependsOn: WebAppInstanceProfileRole
     Properties: 
       LaunchTemplateName: WebServerLaunchTemplate
       LaunchTemplateData:
@@ -148,10 +149,8 @@ Resources:
             Groups:
               - !Ref WebServerSecurityGroup
             DeleteOnTermination: true
-        IamInstanceProfile:
-          Arn: !GetAtt
-            - WebAppInstanceProfileRole
-            - Arn
+        IamInstanceProfile: 
+          Name: !Sub ${Application}-InstanceProfile-${EnvironmentName}
         UserData:
           Fn::Base64: |
             #!/bin/bash
@@ -205,7 +204,7 @@ Resources:
         LaunchTemplateId: !Ref WebAppLaunchTemplate
         Version: !GetAtt WebAppLaunchTemplate.LatestVersionNumber
       MaxSize: '3'
-      MinSize: '2'
+      MinSize: '1'
       TargetGroupARNs:
         - !Ref EC2TargetGroup
       VPCZoneIdentifier:
