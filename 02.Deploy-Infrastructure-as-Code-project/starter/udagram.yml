@@ -159,7 +159,7 @@ Resources:
 
               # download index.html file from S3 bucket
               # place to /var/www/html
-              sudo aws s3 sync s3://udacity-static-content-dev/contents/ /var/www/html --exclude ".*"
+              sudo aws s3 sync s3://${BucketName}/contents/ /var/www/html --exclude ".*"
 
               service nginx start
 
